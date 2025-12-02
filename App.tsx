@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import {
   Search,
@@ -38,13 +38,15 @@ import {
   MessageSquare,
   Send,
   LogOut,
-  Lock
+  Download,
+  Check,
+  Filter
 } from 'lucide-react';
 
 // --- TYPE DEFINITIONS ---
 
-// IMPORTANT: Replace this with your actual Google Client ID from https://console.cloud.google.com/
-const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID_HERE";
+// IMPORTANT: Google Client ID provided by user
+const GOOGLE_CLIENT_ID = "458835803594-8nirbuicm0974n5r6gg126csrvgm6av3.apps.googleusercontent.com";
 
 declare global {
     interface Window {
@@ -126,6 +128,12 @@ interface User {
   email: string;
   picture: string;
   role: string;
+}
+
+interface Toast {
+    id: string;
+    message: string;
+    type: 'success' | 'error' | 'info';
 }
 
 // --- CONSTANTS ---
@@ -557,6 +565,125 @@ const parseJwt = (token: string) => {
 
 // --- COMPONENTS ---
 
+// Toast Component
+const ToastContainer = ({ toasts, removeToast }: { toasts: Toast[], removeToast: (id: string) => void }) => {
+    return (
+        <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
+            {toasts.map(toast => (
+                <div 
+                    key={toast.id} 
+                    className={`
+                        pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border animate-fade-in
+                        ${toast.type === 'success' ? 'bg-white border-emerald-100 text-slate-800' : 
+                          toast.type === 'error' ? 'bg-white border-rose-100 text-slate-800' : 
+                          'bg-white border-slate-200 text-slate-800'}
+                    `}
+                >
+                    <div className={`
+                        p-1.5 rounded-full 
+                        ${toast.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 
+                          toast.type === 'error' ? 'bg-rose-100 text-rose-600' : 
+                          'bg-blue-100 text-blue-600'}
+                    `}>
+                        {toast.type === 'success' ? <Check className="w-4 h-4" /> : 
+                         toast.type === 'error' ? <AlertTriangle className="w-4 h-4" /> : 
+                         <Info className="w-4 h-4" />}
+                    </div>
+                    <div className="text-sm font-medium">{toast.message}</div>
+                    <button onClick={() => removeToast(toast.id)} className="text-slate-400 hover:text-slate-600">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const AddResourceModal = ({ isOpen, onClose, userEmail }: { isOpen: boolean, onClose: () => void, userEmail: string }) => {
+    const [form, setForm] = useState({
+        name: '',
+        website: '',
+        phone: '',
+        address: '',
+        eligibility: '',
+        about: ''
+    });
+
+    if (!isOpen) return null;
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const subject = encodeURIComponent("New Resource Request: " + form.name);
+        const body = encodeURIComponent(
+            `Please add this resource:\n\n` +
+            `Name: ${form.name}\n` +
+            `Website: ${form.website}\n` +
+            `Phone: ${form.phone}\n` +
+            `Address: ${form.address}\n` +
+            `Eligibility: ${form.eligibility}\n` +
+            `About: ${form.about}\n\n` +
+            `Requested by: ${userEmail}`
+        );
+        window.location.href = `mailto:romariojoseph2000@gmail.com?subject=${subject}&body=${body}`;
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[80] animate-fade-in" onClick={onClose}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
+                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                    <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                        <Plus className="w-5 h-5 text-blue-600" /> Suggest a Resource
+                    </h3>
+                    <button onClick={onClose}><X className="w-5 h-5 text-slate-400 hover:text-red-500" /></button>
+                </div>
+                <div className="p-6 overflow-y-auto">
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Resource Name</label>
+                            <input required className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                                value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Website</label>
+                                <input className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                                    value={form.website} onChange={e => setForm({...form, website: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone</label>
+                                <input className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                                    value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Address</label>
+                            <input className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                                value={form.address} onChange={e => setForm({...form, address: e.target.value})} />
+                        </div>
+                         <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Eligibility Criteria</label>
+                            <input className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" 
+                                value={form.eligibility} onChange={e => setForm({...form, eligibility: e.target.value})} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">About / Description</label>
+                            <textarea className="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" rows={3}
+                                value={form.about} onChange={e => setForm({...form, about: e.target.value})} />
+                        </div>
+                        <div className="pt-2">
+                            <button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+                                <Mail className="w-4 h-4" /> Send Request
+                            </button>
+                            <p className="text-center text-xs text-slate-400 mt-2">This will open your default email client.</p>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const RoleSelectionModal = ({ isOpen, onClose, onSelectRole }: { isOpen: boolean, onClose: () => void, onSelectRole: (role: string) => void }) => {
     if (!isOpen) return null;
 
@@ -589,22 +716,57 @@ const RoleSelectionModal = ({ isOpen, onClose, onSelectRole }: { isOpen: boolean
 };
 
 const AuthModal = ({ isOpen, onClose, onLoginSuccess }: { isOpen: boolean, onClose: () => void, onLoginSuccess: (user: any) => void }) => {
+    // Use a ref to track if we've already initialized to prevent double-rendering issues in dev strict mode
+    const initializedRef = useRef(false);
+
     useEffect(() => {
-        if (isOpen && window.google) {
-            window.google.accounts.id.initialize({
-                client_id: GOOGLE_CLIENT_ID,
-                callback: (response: any) => {
-                    const decoded = parseJwt(response.credential);
-                    if (decoded) {
-                        onLoginSuccess(decoded);
-                    }
-                }
-            });
-            window.google.accounts.id.renderButton(
-                document.getElementById("googleIconBtn"),
-                { theme: "outline", size: "large", width: "100%" }
-            );
+        if (!isOpen) {
+            initializedRef.current = false;
+            return;
         }
+
+        const handleGoogleInit = () => {
+             if (window.google && window.google.accounts && !initializedRef.current) {
+                try {
+                    window.google.accounts.id.initialize({
+                        client_id: GOOGLE_CLIENT_ID,
+                        callback: (response: any) => {
+                            const decoded = parseJwt(response.credential);
+                            if (decoded) {
+                                onLoginSuccess(decoded);
+                            }
+                        },
+                        auto_select: false,
+                        cancel_on_tap_outside: true
+                    });
+                    
+                    const btnDiv = document.getElementById("googleIconBtn");
+                    if (btnDiv) {
+                        window.google.accounts.id.renderButton(
+                            btnDiv,
+                            { theme: "outline", size: "large", width: "100%", text: "continue_with" }
+                        );
+                        initializedRef.current = true;
+                    }
+                } catch (error) {
+                    console.error("Google Sign-In initialization error:", error);
+                }
+            }
+        };
+
+        // Attempt immediately
+        handleGoogleInit();
+
+        // Check periodically if script is slow to load
+        const timer = setInterval(() => {
+            if (!initializedRef.current) {
+                handleGoogleInit();
+            } else {
+                clearInterval(timer);
+            }
+        }, 500);
+
+        return () => clearInterval(timer);
     }, [isOpen, onLoginSuccess]);
 
     if (!isOpen) return null;
@@ -619,7 +781,7 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }: { isOpen: boolean, onClo
                 <p className="text-slate-600 mb-6 text-sm">Access advanced features like reviewing and saving resources.</p>
                 
                 {/* Google Sign In Button Container */}
-                <div id="googleIconBtn" className="w-full mb-3 min-h-[40px]"></div>
+                <div id="googleIconBtn" className="w-full mb-3 min-h-[40px] flex justify-center"></div>
                 
                 <button 
                     onClick={onClose}
@@ -627,12 +789,21 @@ const AuthModal = ({ isOpen, onClose, onLoginSuccess }: { isOpen: boolean, onClo
                 >
                     Cancel
                 </button>
+
+                {/* Debug Info for Origin Mismatch */}
+                <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-lg text-left">
+                    <p className="text-[10px] font-bold text-red-800 uppercase mb-1">Debug: Origin Mismatch Fix</p>
+                    <p className="text-[10px] text-red-600 mb-1">If you see Error 400, add this URL to "Authorized Javascript Origins" in Google Cloud Console:</p>
+                    <code className="block bg-white border border-red-100 p-1.5 rounded text-[10px] font-mono text-slate-600 select-all break-all">
+                        {window.location.origin}
+                    </code>
+                </div>
             </div>
         </div>
     );
 };
 
-const ShareModal = ({ resource, isOpen, onClose }: { resource: Resource | null, isOpen: boolean, onClose: () => void }) => {
+const ShareModal = ({ resource, isOpen, onClose, showToast }: { resource: Resource | null, isOpen: boolean, onClose: () => void, showToast: (msg: string, type: 'success') => void }) => {
     if (!isOpen || !resource) return null;
 
     const resourceUrl = `${window.location.origin}/resource/${resource.id}`; // Mock URL
@@ -640,7 +811,8 @@ const ShareModal = ({ resource, isOpen, onClose }: { resource: Resource | null, 
 
     const handleCopy = () => {
         navigator.clipboard.writeText(resourceUrl);
-        alert('Link copied to clipboard!'); 
+        showToast('Link copied to clipboard!', 'success');
+        onClose();
     };
 
     return (
@@ -761,7 +933,7 @@ const ResourceCard: React.FC<{
     );
 };
 
-const ResourceDraftingModal = ({ resource, isOpen, onClose }: { resource: Resource, isOpen: boolean, onClose: () => void }) => {
+const ResourceDraftingModal = ({ resource, isOpen, onClose, showToast }: { resource: Resource, isOpen: boolean, onClose: () => void, showToast: (msg: string, type: 'success' | 'error') => void }) => {
     const [prompt, setPrompt] = useState(`Draft a text message for a client named "Jane" introducing ${resource.name}. Mention they offer ${resource.services.slice(0,2).join(' and ')}.`);
     const [response, setResponse] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -794,10 +966,8 @@ const ResourceDraftingModal = ({ resource, isOpen, onClose }: { resource: Resour
         }
     };
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+        <div className={`fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in ${isOpen ? '' : 'hidden'}`}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-gradient-to-r from-blue-50 to-white">
                     <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
@@ -826,7 +996,7 @@ const ResourceDraftingModal = ({ resource, isOpen, onClose }: { resource: Resour
                             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Result</h4>
                             <p className="text-slate-800 text-sm whitespace-pre-wrap leading-relaxed">{response}</p>
                             <button 
-                                onClick={() => {navigator.clipboard.writeText(response); alert('Copied!');}}
+                                onClick={() => {navigator.clipboard.writeText(response); showToast('Draft copied to clipboard!', 'success');}}
                                 className="mt-3 text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1"
                             >
                                 <Clipboard className="w-3 h-3" /> Copy to Clipboard
@@ -1015,6 +1185,7 @@ export default function App() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [selectedCity, setSelectedCity] = useState('all');
+    const [verifiedOnly, setVerifiedOnly] = useState(false);
     const [selectedResource, setSelectedResource] = useState<Resource | null>(null);
     const [savedResourceIds, setSavedResourceIds] = useState<Set<string>>(new Set());
     const [likeCounts, setLikeCounts] = useState<Record<string, number>>(() => {
@@ -1027,9 +1198,18 @@ export default function App() {
     const [sharingResource, setSharingResource] = useState<Resource | null>(null);
     const [showAuthModal, setShowAuthModal] = useState(false);
     const [showRoleModal, setShowRoleModal] = useState(false);
+    const [showAddResourceModal, setShowAddResourceModal] = useState(false);
+    const [toasts, setToasts] = useState<Toast[]>([]);
     
     // Reviews State
     const [reviews, setReviews] = useState<Review[]>(MOCK_REVIEWS);
+
+    // Toast Logic
+    const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+        const id = Date.now().toString();
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+    };
 
     const handleGoogleLoginSuccess = (googleUser: any) => {
         setTempGoogleUser({
@@ -1051,7 +1231,16 @@ export default function App() {
             });
             setTempGoogleUser(null);
             setShowRoleModal(false);
+            showToast(`Signed in as ${role}`, 'success');
         }
+    };
+
+    const handleRequestAddResource = () => {
+        if (!user) {
+            setShowAuthModal(true);
+            return;
+        }
+        setShowAddResourceModal(true);
     };
 
     // Derived State
@@ -1061,9 +1250,23 @@ export default function App() {
                                   r.services.some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
             const matchesCat = selectedCategory === 'all' || r.category === selectedCategory;
             const matchesCity = selectedCity === 'all' || r.location.city === selectedCity;
-            return matchesSearch && matchesCat && matchesCity;
+            const matchesVerified = !verifiedOnly || r.trust.verificationScore >= 80;
+            return matchesSearch && matchesCat && matchesCity && matchesVerified;
         });
-    }, [searchQuery, selectedCategory, selectedCity]);
+    }, [searchQuery, selectedCategory, selectedCity, verifiedOnly]);
+
+    // Map Bounds Calculation
+    const mapBounds = useMemo(() => {
+        if (filteredResources.length === 0) return null;
+        const lats = filteredResources.map(r => r.location.lat);
+        const lngs = filteredResources.map(r => r.location.lng);
+        return {
+            minLat: Math.min(...lats) - 0.05,
+            maxLat: Math.max(...lats) + 0.05,
+            minLng: Math.min(...lngs) - 0.05,
+            maxLng: Math.max(...lngs) + 0.05
+        };
+    }, [filteredResources]);
 
     const toggleSave = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
@@ -1079,9 +1282,11 @@ export default function App() {
         if (next.has(id)) {
             next.delete(id);
             nextLikes[id] = Math.max(0, (nextLikes[id] || 0) - 1);
+            showToast('Removed from saved list', 'info');
         } else {
             next.add(id);
             nextLikes[id] = (nextLikes[id] || 0) + 1;
+            showToast('Resource saved successfully', 'success');
         }
         setSavedResourceIds(next);
         setLikeCounts(nextLikes);
@@ -1113,6 +1318,30 @@ export default function App() {
         };
         
         setReviews([newReview, ...reviews]);
+        showToast('Review submitted successfully', 'success');
+    };
+
+    const handleExportSaved = () => {
+        if (savedResourceIds.size === 0) {
+            showToast('No resources to export', 'error');
+            return;
+        }
+
+        const savedResources = RESOURCES.filter(r => savedResourceIds.has(r.id));
+        const content = savedResources.map(r => (
+            `NAME: ${r.name}\nPHONE: ${r.contact.phone || 'N/A'}\nADDRESS: ${r.location.address}, ${r.location.city}\nWEBSITE: ${r.contact.website || 'N/A'}\nDESCRIPTION: ${r.description}\n`
+        )).join('\n----------------------------------------\n\n');
+
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Saved_Resources_${new Date().toISOString().split('T')[0]}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Resource list downloaded', 'success');
     };
 
     const currentReviews = useMemo(() => {
@@ -1122,7 +1351,8 @@ export default function App() {
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900 pt-2">
-            
+            <ToastContainer toasts={toasts} removeToast={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
+
             {/* Header */}
             <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -1157,6 +1387,15 @@ export default function App() {
                                 {CITIES.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
 
+                            <button 
+                                onClick={handleRequestAddResource}
+                                className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 rounded-xl text-sm font-medium transition-colors shadow-sm"
+                                title="Suggest a new resource"
+                            >
+                                <Plus className="w-4 h-4" />
+                                <span className="hidden lg:inline">Add</span>
+                            </button>
+
                             {/* User Profile / Sign In */}
                             <div className="ml-2 flex-shrink-0 min-w-[140px] flex justify-end">
                                 {user ? (
@@ -1170,7 +1409,10 @@ export default function App() {
                                                 {user.picture ? <img src={user.picture} alt="" className="w-full h-full object-cover" /> : user.name.charAt(0)}
                                             </div>
                                             <button 
-                                                onClick={() => setUser(null)}
+                                                onClick={() => {
+                                                    setUser(null);
+                                                    showToast("Signed out successfully", 'info');
+                                                }}
                                                 className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
                                                 title="Sign Out"
                                             >
@@ -1191,25 +1433,35 @@ export default function App() {
                     </div>
                 </div>
                 
-                {/* Categories Scroll */}
-                <div className="border-t border-slate-100 py-3 overflow-x-auto no-scrollbar">
-                    <div className="max-w-7xl mx-auto px-4 flex gap-2 min-w-max">
-                        <button 
-                            onClick={() => setSelectedCategory('all')}
-                            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${selectedCategory === 'all' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                        >
-                            All Resources
-                        </button>
-                        {Object.entries(CATEGORY_ICONS).map(([key, Icon]) => (
+                {/* Categories Scroll & Filters */}
+                <div className="border-t border-slate-100 py-3 bg-white/50">
+                    <div className="max-w-7xl mx-auto px-4 flex items-center gap-4">
+                        <div className="flex items-center gap-2 pr-4 border-r border-slate-200 flex-shrink-0">
                             <button
-                                key={key}
-                                onClick={() => setSelectedCategory(key)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${selectedCategory === key ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                                onClick={() => setVerifiedOnly(!verifiedOnly)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${verifiedOnly ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
                             >
-                                <Icon className="w-3.5 h-3.5" />
-                                {key.replace(/-/g, ' ')}
+                                <Shield className={`w-3.5 h-3.5 ${verifiedOnly ? 'fill-emerald-500 text-emerald-500' : ''}`} /> Verified Only
                             </button>
-                        ))}
+                        </div>
+                        <div className="overflow-x-auto no-scrollbar flex gap-2 w-full">
+                            <button 
+                                onClick={() => setSelectedCategory('all')}
+                                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${selectedCategory === 'all' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                All Resources
+                            </button>
+                            {Object.entries(CATEGORY_ICONS).map(([key, Icon]) => (
+                                <button
+                                    key={key}
+                                    onClick={() => setSelectedCategory(key)}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap ${selectedCategory === key ? 'bg-blue-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'}`}
+                                >
+                                    <Icon className="w-3.5 h-3.5" />
+                                    {key.replace(/-/g, ' ')}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </header>
@@ -1255,32 +1507,57 @@ export default function App() {
 
                     {/* Map / Sidebar Section */}
                     <div className="lg:col-span-1 hidden lg:block space-y-6 sticky top-40 h-fit">
-                        {/* Map Preview */}
-                        <div className="bg-slate-200 rounded-2xl overflow-hidden shadow-inner relative h-64 border border-slate-300 group">
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <MapIcon className="w-12 h-12 text-slate-400 opacity-50" />
-                            </div>
-                            {/* Simulated Pins */}
-                            {filteredResources.slice(0, 10).map((r, i) => (
-                                <div 
-                                    key={r.id}
-                                    className="absolute w-2 h-2 bg-blue-600 rounded-full shadow-sm ring-2 ring-white"
-                                    style={{
-                                        top: `${20 + (Math.abs(Math.sin(i)) * 60)}%`,
-                                        left: `${20 + (Math.abs(Math.cos(i)) * 60)}%`
-                                    }}
-                                />
-                            ))}
-                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur px-4 py-2 rounded-lg shadow-sm text-xs font-bold text-slate-700">
-                                Interactive Map View Coming Soon
+                        {/* Interactive Mini-Map */}
+                        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-200 relative h-72 group hover:shadow-md transition-shadow">
+                            <div className="absolute inset-0 bg-slate-100" style={{
+                                backgroundImage: 'radial-gradient(#cbd5e1 1.5px, transparent 1.5px)',
+                                backgroundSize: '12px 12px'
+                            }}></div>
+                            
+                            {/* Map Logic - Simple Projection */}
+                            {mapBounds && filteredResources.map((r, i) => {
+                                const latRange = mapBounds.maxLat - mapBounds.minLat || 1;
+                                const lngRange = mapBounds.maxLng - mapBounds.minLng || 1;
+                                
+                                // Invert Lat for CSS 'top' (0 is top)
+                                const top = ((mapBounds.maxLat - r.location.lat) / latRange) * 100;
+                                const left = ((r.location.lng - mapBounds.minLng) / lngRange) * 100;
+                                
+                                return (
+                                    <button 
+                                        key={r.id}
+                                        onClick={() => setSelectedResource(r)}
+                                        className={`absolute w-3 h-3 -ml-1.5 -mt-1.5 rounded-full border-2 border-white shadow-md transition-transform hover:scale-150 z-10 hover:z-20 cursor-pointer ${CATEGORY_COLORS[r.category].replace(/text-(\w+-\d+).*/, 'bg-$1')}`}
+                                        style={{ top: `${top}%`, left: `${left}%` }}
+                                        title={r.name}
+                                    />
+                                );
+                            })}
+                            
+                            <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg shadow-sm border border-slate-200">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                    <MapIcon className="w-3 h-3" /> Area View
+                                </span>
                             </div>
                         </div>
 
                         {/* Saved Resources Widget */}
                         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-                            <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4">
-                                <Heart className="w-4 h-4 text-rose-500 fill-rose-500" /> Saved Resources
-                            </h3>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                    <Heart className="w-4 h-4 text-rose-500 fill-rose-500" /> Saved Resources
+                                </h3>
+                                {savedResourceIds.size > 0 && (
+                                    <button 
+                                        onClick={handleExportSaved}
+                                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                        title="Download List"
+                                    >
+                                        <Download className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+                            
                             {savedResourceIds.size > 0 ? (
                                 <ul className="space-y-3">
                                     {Array.from(savedResourceIds).map(id => {
@@ -1299,7 +1576,9 @@ export default function App() {
                                     })}
                                 </ul>
                             ) : (
-                                <p className="text-sm text-slate-400 italic">No resources saved yet.</p>
+                                <p className="text-sm text-slate-400 italic text-center py-4 bg-slate-50 rounded-lg">
+                                    Save resources to create a client list.
+                                </p>
                             )}
                         </div>
                     </div>
@@ -1519,19 +1798,20 @@ export default function App() {
             {/* AI Modals */}
             {selectedResource && (
                 <>
-                    <ResourceDraftingModal resource={selectedResource} isOpen={isDraftingOpen} onClose={() => setIsDraftingOpen(false)} />
+                    <ResourceDraftingModal resource={selectedResource} isOpen={isDraftingOpen} onClose={() => setIsDraftingOpen(false)} showToast={showToast} />
                     <GroundingSearchModal resource={selectedResource} isOpen={isGroundingOpen} onClose={() => setIsGroundingOpen(false)} />
                 </>
             )}
             
             {/* Helper Modals */}
-            <ShareModal resource={sharingResource} isOpen={!!sharingResource} onClose={() => setSharingResource(null)} />
+            <ShareModal resource={sharingResource} isOpen={!!sharingResource} onClose={() => setSharingResource(null)} showToast={showToast} />
             <AuthModal 
                 isOpen={showAuthModal} 
                 onClose={() => setShowAuthModal(false)} 
                 onLoginSuccess={handleGoogleLoginSuccess} 
             />
             <RoleSelectionModal isOpen={showRoleModal} onClose={() => setShowRoleModal(false)} onSelectRole={handleRoleSelection} />
+            <AddResourceModal isOpen={showAddResourceModal} onClose={() => setShowAddResourceModal(false)} userEmail={user?.email || ''} />
         </div>
     );
 }
